@@ -43,12 +43,23 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.zip_url }}" ]; then
             echo "Downloading project ZIP..."
-            curl -L -o project.zip "${{ github.event.inputs.zip_url }}"
+            # MENGGUNAKAN USER-AGENT AGAR TELEGRAM TIDAK MEMBLOKIR
+            curl -L -A "Mozilla/5.0" -o project.zip "${{ github.event.inputs.zip_url }}"
+            
+            # Cek apakah file kosong atau gagal diunduh
+            if [ ! -s project.zip ]; then
+              echo "Error: Gagal mengunduh ZIP atau link sudah kadaluarsa."
+              exit 1
+            fi
+
             unzip project.zip -d source_code
             cd source_code
+            
+            # Cari folder yang ada file pubspec.yaml-nya
             find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1 > project_dir.txt
             PROJECT_DIR=$(cat project_dir.txt)
             cd "$PROJECT_DIR"
+            
           elif [ -n "${{ github.event.inputs.url }}" ]; then
             echo "Creating WebView project..."
             flutter create my_app
