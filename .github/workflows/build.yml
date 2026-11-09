@@ -1,0 +1,68 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Website URL (jika Web to APK)'
+        required: false
+      app_name:
+        description: 'Nama Aplikasi'
+        required: true
+      package_name:
+        description: 'Nama Package (com.example.app)'
+        required: true
+      user_id:
+        description: 'ID Telegram User'
+        required: true
+      zip_url:
+        description: 'URL File ZIP (jika Build Project)'
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Build APK
+        run: |
+          if [ -n "${{ github.event.inputs.zip_url }}" ]; then
+            echo "Downloading project ZIP..."
+            curl -L -o project.zip "${{ github.event.inputs.zip_url }}"
+            unzip project.zip -d source_code
+            cd source_code
+            find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1 > project_dir.txt
+            PROJECT_DIR=$(cat project_dir.txt)
+            cd "$PROJECT_DIR"
+          elif [ -n "${{ github.event.inputs.url }}" ]; then
+            echo "Creating WebView project..."
+            flutter create my_app
+            cd my_app
+          else
+            echo "Error: Tidak ada URL atau ZIP yang dikirim."
+            exit 1
+          fi
+
+          echo "Building APK..."
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.app_name }}
+          path: "**/build/app/outputs/flutter-apk/app-release.apk"
