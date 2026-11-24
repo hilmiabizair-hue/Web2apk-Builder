@@ -16,12 +16,12 @@ on:
         default: "com.mayzz.app"
 
       url:
-        description: "URL Website untuk Website to APK"
+        description: "URL Website"
         required: false
         type: string
 
       zip_url:
-        description: "Direct Download URL ZIP untuk ZIP to APK"
+        description: "Direct Download URL ZIP"
         required: false
         type: string
 
@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java
@@ -69,7 +69,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y unzip curl
 
-      - name: Prepare Build
+      - name: Prepare Project
         env:
           APP_NAME: ${{ inputs.app_name }}
           PACKAGE_NAME: ${{ inputs.package_name }}
@@ -93,13 +93,8 @@ jobs:
 
             case "$ZIP_URL" in
               http://*|https://*) ;;
-              *)
-                echo "URL ZIP tidak valid."
-                exit 1
-                ;;
+              *) echo "URL ZIP tidak valid."; exit 1 ;;
             esac
-
-            echo "Downloading ZIP..."
 
             curl --fail --location --retry 3 \
               --output project.zip "$ZIP_URL"
@@ -107,16 +102,16 @@ jobs:
             mkdir -p source_code
             unzip -q project.zip -d source_code
 
-            PUBSPEC_PATH=$(find "$GITHUB_WORKSPACE/source_code" \
+            PUBSPEC_PATH=$(find source_code \
               -type f -name pubspec.yaml \
               -not -path '*/.dart_tool/*' -print -quit)
 
             if [ -z "$PUBSPEC_PATH" ]; then
-              echo "pubspec.yaml tidak ditemukan."
+              echo "Project Flutter tidak ditemukan."
               exit 1
             fi
 
-            PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+            PROJECT_DIR="$(dirname "$PUBSPEC_PATH")"
 
           elif [ "$BUILD_TYPE" = "website" ]; then
 
@@ -127,14 +122,11 @@ jobs:
 
             case "$WEB_URL" in
               http://*|https://*) ;;
-              *)
-                echo "URL Website tidak valid."
-                exit 1
-                ;;
+              *) echo "URL Website tidak valid."; exit 1 ;;
             esac
 
             if [[ ! "$PACKAGE_NAME" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]; then
-              echo "Package Name tidak valid."
+              echo "Package name tidak valid."
               exit 1
             fi
 
@@ -165,36 +157,20 @@ jobs:
 
           void main() => runApp(const MyApp());
 
-          class MyApp extends StatefulWidget {
+          class MyApp extends StatelessWidget {
             const MyApp({super.key});
 
             @override
-            State<MyApp> createState() => _MyAppState();
-          }
-
-          class _MyAppState extends State<MyApp> {
-            late final WebViewController controller;
-
-            @override
-            void initState() {
-              super.initState();
-
-              controller = WebViewController()
-                ..setJavaScriptMode(
-                  JavaScriptMode.unrestricted,
-                )
-                ..loadRequest(Uri.parse(URL_VALUE));
-            }
-
-            @override
             Widget build(BuildContext context) {
+              final controller = WebViewController()
+                ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                ..loadRequest(Uri.parse(URL_VALUE));
+
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
                 home: Scaffold(
                   body: SafeArea(
-                    child: WebViewWidget(
-                      controller: controller,
-                    ),
+                    child: WebViewWidget(controller: controller),
                   ),
                 ),
               );
@@ -213,17 +189,16 @@ jobs:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Build Release APK
+      - name: Build APK
         run: |
           set -euo pipefail
 
           cd "$PROJECT_DIR"
 
           flutter pub get
-
           flutter build apk --release
 
-          APK_PATH="$PROJECT_DIR/build/app/outputs/flutter-apk/app-release.apk"
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
 
           if [ ! -f "$APK_PATH" ]; then
             echo "APK tidak ditemukan."
@@ -233,8 +208,6 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
 
           cp "$APK_PATH" "$GITHUB_WORKSPACE/output/app-release.apk"
-
-          echo "BUILD SUCCESS!"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
